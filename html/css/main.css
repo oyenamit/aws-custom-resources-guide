@@ -1,0 +1,331 @@
+/* ***** BEGIN LICENSE BLOCK *****
+ *
+ * Copyright (C) 2019 Namit Bhalla (oyenamit@gmail.com)
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>
+ *
+ * ***** END LICENSE BLOCK ***** */
+
+
+
+/*-------------------- body, paragraphs, lists --------------------*/
+html,
+body {
+    margin: 0;
+    padding: 0;
+    background-color: #ffffff;
+}
+
+body,
+div {
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 16px;
+    color: #444444;
+}
+
+#main-content {
+    padding-left: 10%;
+    padding-right: 10%;
+    padding-top: 5%;
+    padding-bottom: 5%;
+}
+
+p {
+    font-family: Helvetica, Arial, sans-serif;
+    color: #444444;
+    font-size: 16px;
+    line-height: 1.5em;
+    text-align: justify;
+}
+
+li, dt a, dt span {
+    font-size: 16px;
+    line-height: 1.5em;
+}
+
+ol {
+    list-style-type: decimal;
+}
+
+ol.lower-alpha {
+    list-style-type: lower-alpha;
+}
+
+ul {
+    list-style-type: disc;
+}
+
+
+/*------------------ headings -------------------*/
+h1, h2, h3 {
+    font-family: Helvetica, Arial, sans-serif;
+    color: #444444;
+}
+
+h1 {
+    font-size: 20px;
+    font-weight: bold;
+}
+
+h2 {
+    font-size: 20px;
+    font-weight: bold;
+    margin: 1em 0;
+    padding-top: 1.5em;
+    color: #cc6600;
+}
+
+h3 {
+    font-size: 16px;
+    font-weight: bold;
+    color: #007697;
+}
+
+.topictitle {
+    font-size: 30px;
+    font-weight: bold;
+    color: #e47911;
+    padding: 69px 0 14px 0;
+    margin-top: -69px;
+    text-align: center;
+}
+
+footer {
+    display: block;
+    font-family: Helvetica, Arial, sans-serif;
+    font-size: 12px;
+    color: gray;
+    text-align: center;
+}
+
+
+/*------------------ media queries -------------------*/
+@media all and (min-width: 1024px) {
+    h1:target {
+        padding-top: 81px;
+        margin-top: -69px;
+    }
+
+    h2:target {
+        padding-top: calc(1.5em + 69px);
+        margin-top: -69px;
+    }
+
+    h3:target {
+        padding-top: 69px;
+        margin-top: -69px;
+    }
+
+    h4:target {
+        padding-top: 69px;
+        margin-top: -69px;
+    }
+
+    h5:target {
+        padding-top: 69px;
+        margin-top: -69px;
+    }
+
+    a:target {
+        padding-top: 69px;
+        margin-top: -69px;
+    }
+
+    span.optionanchor:target {
+        padding-top: 79px;
+        margin-top: -79px;
+    }
+
+    a:empty:not([href]) {
+        display: block;
+        height: 0px;
+    }
+}
+
+
+/*------------------ images -------------------*/
+img {
+    border-style: hidden;
+    border-width: 0px 0px 0px 0px;
+    border-color: #ffffff;
+    border-radius: 4px;
+    padding: 0px 0px 0px 0px;
+    margin: 0px 0px 0px 0px;
+    height: auto;
+    max-width: 100%;
+}
+
+img.centre {
+    display: block;
+    margin: 0 auto;
+}
+
+
+/*-------------------- anchors --------------------*/
+a:target + * {
+    padding-top: 69px;
+    margin-top: -69px;
+}
+
+:target:not(a, h1, h2, h3, h4, h5) {
+    padding-top: 69px;
+    margin-top: -69px;
+}
+
+a:visited {
+    color: #E48700;
+}
+
+a, p a, li a, dt a {
+  text-decoration: none;
+  color: #1166BB;
+}
+
+a:hover, p a:hover, li a:hover, dt a:hover {
+    text-decoration: underline;
+    color: #3388DD;
+}
+
+pre a {
+    text-decoration: none;
+}
+
+
+/*-------------------- code, pre-formatting --------------------*/
+pre {
+    font-size: 14px;
+    font-weight: normal;
+    font-family: "Consolas", Courier, monospace;
+    border: 1px solid #e1e1e8;
+    border-radius: 3px;
+    padding: .5em;
+    line-height: normal;
+}
+
+pre.programlisting, pre.screen {
+    overflow: auto;
+    position: relative;
+    padding: 0px;
+    max-height: 450px;
+}
+
+pre.programlisting span {
+    font-family: "Consolas", Courier, monospace;
+}
+
+code {
+    font-family: "Consolas", Courier, monospace;
+    overflow: auto;
+}
+
+
+/*-------------------- table --------------------*/
+table {
+    margin-bottom: 10px;
+    border-collapse: collapse;
+}
+
+table p {
+    font-size: 16px;
+}
+
+div.table {
+    position: relative;
+}
+
+.table-contents table {
+    border-top: 1px solid #cccccc;
+    border-left: 1px solid #cccccc;
+    border-bottom: 0px;
+    border-right: 0px;
+    border-spacing: 0px;
+}
+
+.table-contents th {
+    font-size: 16px;
+    padding: 5px 5px 5px 5px;
+    border-bottom: 1px solid #cccccc;
+    border-right: 1px solid #cccccc;
+    border-left: 0px;
+    border-top: 0px;
+    background-color: rgb(220, 220, 220);
+    color: #444444;
+    font-size: 16px;
+    font-weight: bold;
+    text-align: left;
+    line-height: 1.5em;
+    height: 30px;
+}
+
+.table-contents td {
+    font-family: Helvetica, Arial, sans-serif; 
+    font-size: 16px;
+    padding: 8px 8px 8px 8px;
+    border-bottom: 1px solid #cccccc;
+    border-right: 1px solid #cccccc;
+    border-left: 0px;
+    border-top: 0px;
+    line-height: 1.5em;
+}
+
+div.table-contents {
+    width: 100%;
+    overflow-x: auto;
+    -ms-overflow-style: -ms-autohiding-scrollbar;
+    -webkit-overflow-scrolling: touch;
+}
+
+tr:hover {
+    background-color: rgb(255, 234, 254);
+}
+
+
+/*-------------------- table of contents --------------------*/
+.collapsible {
+    background-color: rgb(35, 47, 62);
+    color: white;
+    cursor: pointer;
+    padding: 10px;
+    width: 100%;
+    border: none;
+    text-align: left;
+    outline: none;
+    font-size: 18px;
+}
+
+.collapsible:after {
+    content: '\002B';
+    color: white;
+    float: left;
+    margin-left: 5px;
+}
+
+.active:after {
+    content: "\2212";
+}
+
+.content {
+    padding: 0 18px;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.2s ease-out;
+    background-color: #ffffff;
+    border-color: #555;
+    border-right-style: solid;
+    border-left-style: solid;
+    border-top-style: none;
+    border-bottom-style: solid;
+    border-width: 1px;
+}
+

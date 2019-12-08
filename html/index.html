@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+
+<!-- ***** BEGIN LICENSE BLOCK *****
+   - 
+   - Copyright (C) 2019 Namit Bhalla (oyenamit@gmail.com)
+   - 
+   - This program is free software: you can redistribute it and/or modify
+   - it under the terms of the GNU General Public License as published by
+   - the Free Software Foundation, either version 3 of the License, or
+   - (at your option) any later version.
+
+   - This program is distributed in the hope that it will be useful,
+   - but WITHOUT ANY WARRANTY; without even the implied warranty of
+   - MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   - GNU General Public License for more details.
+   -
+   - You should have received a copy of the GNU General Public License
+   - along with this program.  If not, see <https://www.gnu.org/licenses/>
+   -
+   - ***** END LICENSE BLOCK ***** -->
+
+
+
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        <title>A Guide to Using AWS Custom Resources</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="description" content="A step-by-step guide to using AWS custom resources in an AWS CloudFormation stack" />
+        <meta name="keywords" content="aws,custom resource,CloudFormation,AWSCloudFormation,resource provisioning,resource configuration,infrastructure management,CloudFormation Designer,CloudFormation stack,CloudFormation stackset,CloudFormation template,change set" />
+        <link rel="stylesheet" type="text/css" href="./css/main.css" />
+        <link rel="stylesheet" type="text/css" href="./css/prism.css" />
+        <link rel="shortcut icon" type="image/png" href="./images/document-icon.png"/>
+    </head>
+    <body id="main-content" onload="initCollapsible()">
+        <script src="./css/prism.js"></script>
+        <script src="./main.js"></script>
+<h1 class="topictitle">A Guide to Using AWS Custom Resources</h1>
+<p><a href="https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/template-custom-resources.html">AWS custom resources</a> are a powerful way to add flexibility to <a href="https://aws.amazon.com/cloudformation/">AWS CloudFormation</a> templates. While other AWS resources represent a specific service (RDS, EC2 etc.), custom resources act like generic placeholders that can be used to inject any additional logic in CloudFormation templates. A custom resource is typically attached to an <a href="https://aws.amazon.com/lambda/">AWS Lambda</a> function which can contain any user-specified code. This code gets executed whenever the CloudFormation template is deployed, updated or deleted. This way, custom resources allow you to extend CloudFormation in ways that are not possible with regular AWS services.</p>
+<p>This article first presents the architectural components of custom resources and explains how they interact with the CloudFormation service. Then, we look at a simple case study where we implement custom provisioning logic using a lambda-backed custom resource. Prior knowledge of CloudFormation, Lambda and IAM services is required.</p>
+<p>The source code and latest version of this article are available on <a href="https://github.com/oyenamit/aws-custom-resources-guide">GitHub</a>.</p>
+<button class="collapsible">&nbsp;&nbsp;Contents</button>
+<div class="content">
+    <p><a href="#components">A. Components of a Custom Resource Solution</a></p>
+    <p><a href="#workflow">B. Workflow of a Custom Resource Solution</a></p>
+    <p><a href="#case-study-setup">C. Case Study Setup</a></p>
+    <p><a href="#case-study-impl">D. Case Study Implementation</a></p>
+    <p><a href="#note">E. Key Points</a></p>
+    <p><a href="#conclusion">F. Conclusion</a></p>
+</div>
+<h2 id="components">(A) Components of a Custom Resource Solution</h2>
+<p>Whenever a user deploys, updates or deletes a stack, the CloudFormation service works with the custom resource and its associated <code>Service Token</code> to execute the custom code. Following is a description of the main parts of a custom resource solution along with corresponding sample code:</p>
+    <ol>
+    <h3>1. Custom Resource</h3>
+    <p>Like any other AWS resource, custom resources can be added to a CloudFormation template using the <a href="https://console.aws.amazon.com/cloudformation/designer/home">AWS Template Designer</a>.</p>
+<img class="centre" src="./images/designer.png" alt="CloudFormation Designer"/> 
+<br>
+<br>
+<p>The corresponding JSON template code will look like this:</p>
+<pre class="programlisting"><code class="language-json">"myCustomResource": {
+    "Type": "AWS::CloudFormation::CustomResource",
+    "Properties": {
+        "..."
+    }
+}</code></pre>
+<br>
+<h3>2. Service Token</h3>
+<p>Every custom resource must be linked with an AWS service which provides the required custom logic (Lambda or Simple Notification Service). This article uses a lambda function to implement the custom logic.</p>
+<pre class="programlisting"><code class="language-json">"myCustomResource": {
+    "Type": "AWS::CloudFormation::CustomResource",
+    "Properties": {
+        "ServiceToken": {
+            "Fn::GetAtt": [
+                "myLambdaFunction",
+                "Arn"
+            ]
+        }
+    }
+}</code></pre>
+<br>
+<h3>3. CloudFormation Service Events</h3>
+<p>When a CloudFormation template is deployed, updated or deleted, the CloudFormation service sends corresponding events to the Service Token. An event structure looks like the following:</p>
+<pre class="programlisting"><code class="language-json">{
+    "RequestType": "Create",
+    "ResponseURL": "http://pre-signed-S3-url-for-response",
+    "StackId": "arn:aws:cloudformation:us-east-1:123456789012:stack/stack-name/guid",
+    "RequestId": "Auto-generated unique Id for this request",
+    "ResourceType": "AWS::CloudFormation::CustomResource",
+    "LogicalResourceId": "myCustomResource",
+    "ResourceProperties": {
+        "myParam1": "myValue1",
+        "myParam2": "myValue2"
+    }
+}</code></pre>
+<div class="variablelist">
+    <dl>
+        <dt>
+            <span class="term"><code>RequestType</code></span>
+        </dt>
+        <dd>
+            <p>Indicates if the stack is being created, updated or deleted. The Service Token can take appropriate actions for each request type.</p>
+        </dd>
+        <dt>
+            <span class="term"><code>ResponseURL</code></span>
+        </dt>
+        <dd>
+            <p>A pre-signed S3 URL that the Service Token invokes to inform CloudFormation service that it has finished executing its custom logic and the stack operation can be continued.</p>
+        </dd>
+        <dt>
+            <span class="term"><code>ResourceProperties</code></span>
+        </dt>
+        <dd>
+        <p>An object that contains the <a href="#inputparams">input parameters</a> specified in the CloudFormation template that are passed verbatim to the Service Token.</p>
+        </dd>
+    </dl>
+</div>
+<br>
+<h3 id="inputparams">4. Input parameters</h3>
+<p>The developer can specify arbitrary parameters in the CloudFormation template that are passed as it is to the Service Token when it is invoked by the CloudFormation service. These parameters are available under <code>ResourceProperties</code> property of the event object.</p>
+<pre class="programlisting"><code class="language-json">"myCustomResource": {
+    "Type": "AWS::CloudFormation::CustomResource",
+    "Properties": {
+        "ServiceToken": {
+            "Fn::GetAtt": [
+                "myLambdaFunction",
+                "Arn"
+            ]
+        },
+        "myParam1": "myValue1",
+        "myParam2": "myValue2"
+    }
+}</code></pre>
+<br>
+<h3>5. Service Token Response</h3>
+<p>Once the Service Token has finished executing, it must send a response back to CloudFormation using the pre-signed S3 URL. Along with this response, it must send a JSON object payload containing the result of the custom resource. The <code>Status</code> property indicates if processing by the custom resource was successful or not. Following is an example of the JSON response object:</p>
+<pre class="programlisting"><code class="language-json">{
+    "Status": "SUCCESS",
+    "Reason": "See the details in CloudWatch Log Stream: 2019/09/03/[$LATEST]881c8e96cf894a7cb0f9fe1f0937c4cf",
+    "PhysicalResourceId": "2019/09/03/[$LATEST]881c8e96cf894a7cb0f9fe1f0937c4cf",
+    "StackId": "arn:aws:cloudformation:us-east-1:2X5X9X6X7X31:stack/myCustomStack/006b6710-ce13-11e9-a761-12de81a2e318",
+    "RequestId": "884cfc24-ab17-46e1-94ce-59ae9a610cdb",
+    "LogicalResourceId": "myCustomResource",
+    "NoEcho": false,
+    "Data": null
+}</code></pre>
+    </ol>
+    <h2 id="workflow">(B) Workflow of a Custom Resource Solution</h2>
+<p>The following diagram shows different parts of a custom resource solution and how they interact with each other:</p>
+<img class="centre" src="./images/components.png" alt="Components of custom resource solution"/>
+<ol class="lower-alpha">
+    <li><p>User starts deployment of a CloudFormation template.</p></li>
+    <li><p>CloudFormation service sends a "Create" event to the custom resource's Service Token. This event contains the pre-signed URL that the Service Token should use to post its response.</p></li>
+    <li><p>The Service Token executes its custom logic.</p></li>
+    <li><p>Service Token then sends a response to the CloudFormation service by invoking the pre-signed S3 URL, indicating success or failure</p></li>
+    <li><p>CloudFormation service proceeds with rest of the stack deployment operations.</p></li>
+    <p>Similar workflow occurs for "Update" and "Delete" events.</p>
+</ol>
+
+<h2 id="case-study-setup">(C) Case Study Setup</h2>
+<p>Consider a scenario where a CloudFormation template creates a new S3 bucket during deployment and deletes this bucket during stack teardown. If this S3 bucket holds any objects, then deletion will fail because CloudFormation service can delete only empty buckets. This will cause entire teardown operation to fail and CloudFormation service will not proceed with deleting rest of the resources. To work around this problem, we can use a lambda-backed custom resource. During teardown, this lambda can delete all the objects in the S3 bucket. Then, CloudFormation can proceed to delete the empty bucket.</p>
+<p>The following diagram shows the architectural components of the solution:</p>
+<img class="centre" src="./images/architecture.png" alt="Architecture of custom resource solution"/>
+<h2 id="case-study-impl">(D) Case Study Implementation</h2>
+<p>This section describes the components used in the case study solution along with their CloudFormation template code.</p>
+<p><em>To use the code, you can open CloudFormation Designer, create the resources described below and then copy-paste the code for each resource into its editor window.</em></p>
+<img class="centre" src="./images/cloudformation-diagram.png" alt="CloudFormation Implementation Diagram"/>
+<ol>
+    <li><p>An <strong>S3 bucket</strong> which will hold user data after the CloudFormation stack has been deployed</p></li>
+<pre class="programlisting"><code class="language-json">{
+    "Resources": {
+        "CustomResBucket": {
+            "Type": "AWS::S3::Bucket",
+            "Properties": {
+                "BucketName": {
+                    "Ref": "S3DataBucket"
+                }
+            }
+        }
+    }
+}</code></pre>
+<br>
+<li><p>An <strong>IAM Policy and a Role</strong> that will allow Lambda function to delete objects from S3 bucket.</p></li>
+<pre class="programlisting"><code class="language-json">{
+    "Resources": {
+        "LambdaS3Policy": {
+            "Type": "AWS::IAM::Policy",
+            "Properties": {
+                "PolicyName": "LambdaS3Policy",
+                "PolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": "s3:DeleteObject",
+                            "Resource": {
+                                "Fn::Join": [
+                                    "",
+                                    [
+                                        "arn:aws:s3:::",
+                                        {
+                                            "Ref": "S3DataBucket"
+                                        },
+                                        "/*"
+                                    ]
+                                ]
+                            }
+                        },
+                        {
+                            "Effect": "Allow",
+                            "Action": "s3:ListBucket",
+                            "Resource": {
+                                "Fn::Join": [
+                                    "",
+                                    [
+                                        "arn:aws:s3:::",
+                                        {
+                                            "Ref": "S3DataBucket"
+                                        }
+                                    ]
+                                ]
+                            }
+                        }
+                    ]
+                },
+                "Roles": [
+                    {
+                        "Ref": "LambdaExecutionRole"
+                    }
+                ]
+            }
+        }
+    }
+}</code></pre>
+<br>
+<p>The IAM role also uses a managed policy for logging to <code>CloudWatch Logs</code>.</p>
+<pre class="programlisting"><code class="language-json">{
+    "Resources": {
+        "LambdaExecutionRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "lambda.amazonaws.com"
+                                ]
+                            },
+                            "Action": [
+                                "sts:AssumeRole"
+                            ]
+                        }
+                    ]
+                },
+                "ManagedPolicyArns": [
+                    "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+                ]
+            }
+        }
+    }
+}</code></pre>
+<br>
+<li><p>A <strong>lambda function</strong> to implement logic for the custom resource. This is the <code>Service Token</code> associated with the custom resource.</p></li>
+<pre class="programlisting"><code class="language-json">{
+    "Resources": {
+        "CustomResHandlerLambda": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+                "Role": {
+                    "Fn::GetAtt": [
+                        "LambdaExecutionRole",
+                        "Arn"
+                    ]
+                },
+                "Runtime": "nodejs12.x",
+                "Timeout": 300,
+                "Handler": "index.handler",
+                "Code": {
+                    "S3Bucket": {
+                        "Ref": "CustomResLambdaBucket"
+                    },
+                    "S3Key": {
+                        "Ref": "CustomResLambdaZip"
+                    }
+                }
+            }
+        }
+    }
+}</code></pre>
+<br>
+<p>Add dependencies for Lambda function:</p>
+<pre class="programlisting"><code class="language-json">{
+    "Resources": {
+        "CustomResHandlerLambda": {
+            "Type": "AWS::Lambda::Function",
+            "DependsOn": [
+                "CustomResBucket",
+                "LambdaExecutionRole"
+            ]
+        }
+    }
+}</code></pre>
+<br>
+<p>NodeJS implementation of the lambda function will iterate over the contents of S3 bucket and delete them:</p>
+<pre class="programlisting"><code class="language-javascript">const AWS = require('aws-sdk');
+const s3 = new AWS.S3();
+const {promisify} = require('util');
+const response = require('./cfn-response');
+
+exports.handler = async function(event, context) {
+    console.log(context.functionName + ' lambda called for: ', event.RequestType);
+
+    // --------------------------------------------------------------------------------------------
+    // Print the incoming CloudWatch event.
+    // --------------------------------------------------------------------------------------------
+    // console.log('Received event: ', JSON.stringify(event, null, 2));
+    
+    let result = response.SUCCESS;
+    
+    if(event.RequestType == 'Delete') {
+        
+        console.log('Processing Delete request');
+        
+        let continuationToken = null;
+        let totalItemCount = 0;
+        
+        // ----------------------------------------------------------------------------------------
+        // Parameters to list contents of S3 bucket
+        // ----------------------------------------------------------------------------------------
+        const listParams = {
+            Bucket: event.ResourceProperties.bucketName,
+            MaxKeys: 1
+        };
+        
+        // ----------------------------------------------------------------------------------------
+        // Parameters to delete contents of S3 bucket
+        // ----------------------------------------------------------------------------------------
+        let deleteParams = {
+            Bucket: event.ResourceProperties.bucketName,
+            Delete: { Objects: [] }
+        };
+        
+        // ----------------------------------------------------------------------------------------
+        // Iterate over the contents of the bucket and delete them
+        // ----------------------------------------------------------------------------------------
+        while(true) {
+            try {
+                
+                // --------------------------------------------------------------------------------
+                // After the previous iteration, some objects are still left in the bucket.
+                // Continue the iteration.
+                // --------------------------------------------------------------------------------
+                if(continuationToken) {
+                    listParams.ContinuationToken = continuationToken;
+                }
+                
+                // --------------------------------------------------------------------------------
+                // Retrieve the next set of objects (count is decided by 'MaxKeys')
+                // --------------------------------------------------------------------------------
+                var data = await s3.listObjectsV2(listParams).promise();
+                console.log('listObjects KeyCount: ' + data.KeyCount + ' IsTruncated: ' + data.IsTruncated + ' NextContinuationToken: ' + data.NextContinuationToken);
+                
+                // --------------------------------------------------------------------------------
+                // Iterate over the returned S3 objects and add them to list of items to delete
+                // --------------------------------------------------------------------------------
+                for(var i = 0; i &lt; data.Contents.length; ++i) {
+                    console.log('S3 object: ' + data.Contents[i].Key);
+                    ++totalItemCount;
+                    
+                    let oneItem = { Key: data.Contents[i].Key };
+                    deleteParams.Delete.Objects.push(oneItem);
+                }
+                
+                // --------------------------------------------------------------------------------
+                // Delete the set of S3 objects
+                // --------------------------------------------------------------------------------
+                console.log('Deleting objects from this iteration');
+                await s3.deleteObjects(deleteParams).promise();
+                
+
+                // --------------------------------------------------------------------------------
+                // Are there more objects in S3 bucket?
+                // --------------------------------------------------------------------------------
+                if(data.IsTruncated === true) {
+                    console.log('More objects present in bucket. Continuing the iteration');
+                    continuationToken = data.NextContinuationToken;
+                } else {
+                    console.log('Finishing the iteration. Total item count: ' + totalItemCount);
+                    continuationToken = null;
+                    break;
+                }
+            }
+            catch(e) {
+                console.log('Error in listObjects/deleteObjects: ' + e);
+                result = response.FAILED;
+                break;
+            }
+        }
+    }
+    
+    // --------------------------------------------------------------------------------------------
+    // Even if an event is not handled ('Create', 'Update' or 'Delete'), always send the response
+    // back so that CloudFormation can continue with the stack operation.
+    // --------------------------------------------------------------------------------------------
+    console.log('Sending response to CloudFormation');
+    const sendAsync = promisify(response.send);
+    
+    try {
+        const ret = await sendAsync(event, context, result, null, null, false);
+        console.log('Successful in sending response to CloudFormation: ' + ret);
+        return ret;
+    }
+    catch(err) {
+        console.log('Error in sending response to CloudFormation. Error: ' + err);
+        throw err;
+    }
+}; </code></pre>
+<br>
+<li><p>The lambda function uses a helper script, <code>cfn-response</code>, for invoking the pre-signed S3 URL to send the response back.</p></li>
+<pre class="programlisting"><code class="language-javascript">// This source code has been adapted from AWS sample source available at:
+// https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-lambda-function-code-cfnresponsemodule.html
+
+exports.SUCCESS = "SUCCESS";
+exports.FAILED = "FAILED";
+
+// ------------------------------------------------------------------------------------------------
+// This function is used to send response back from custom resource lambda
+// ------------------------------------------------------------------------------------------------
+exports.send = function(event, context, responseStatus, responseData, physicalResourceId, noEcho, callback) {
+
+    var https = require("https");
+    var url = require("url");
+
+    // --------------------------------------------------------------------------------------------
+    // Payload for the HTTP PUT call
+    // --------------------------------------------------------------------------------------------
+    var responseBody = JSON.stringify({
+        Status: responseStatus,
+        Reason: "See the details in CloudWatch Log Stream: " + context.logStreamName,
+        PhysicalResourceId: physicalResourceId || context.logStreamName,
+        StackId: event.StackId,
+        RequestId: event.RequestId,
+        LogicalResourceId: event.LogicalResourceId,
+        NoEcho: noEcho || false,
+        Data: responseData
+    });
+
+    console.log("Response body:\n", responseBody);
+
+    // --------------------------------------------------------------------------------------------
+    // event.ResponseURL is a pre-signed URL that is provided by CloudFormation so that the lambda
+    // function can send a response back once it is finished with its processing.
+    // --------------------------------------------------------------------------------------------
+    var parsedUrl = url.parse(event.ResponseURL);
+
+    // --------------------------------------------------------------------------------------------
+    // Parameters for HTTP PUT call
+    // --------------------------------------------------------------------------------------------
+    var options = {
+        hostname: parsedUrl.hostname,
+        port: 443,
+        path: parsedUrl.path,
+        method: "PUT",
+        headers: {
+            "content-type": "",
+            "content-length": responseBody.length
+        }
+    };
+
+    // --------------------------------------------------------------------------------------------
+    // Initiate the HTTP PUT call
+    // --------------------------------------------------------------------------------------------
+    var request = https.request(options, function(response) {
+        console.log("Successful in sending PUT request for response. Status code/message: " + response.statusCode + "/" + response.statusMessage);
+
+        callback(null, "" + response.statusCode + "/" + response.statusMessage);
+    });
+
+    request.on("error", function(error) {
+        console.log("Failed to send PUT request for response. Error: " + error);
+
+        callback(error, null);
+    });
+
+
+    // --------------------------------------------------------------------------------------------
+    // Send the response payload and finish the PUT call
+    // --------------------------------------------------------------------------------------------
+    request.write(responseBody);
+    request.end();
+};</code></pre>
+<br>
+<li><p>A <strong>custom resource</strong> which is linked to the lambda function. The custom resource passes the S3 bucket name as an input parameter (<code>bucketName</code>) to the lambda.</p></li>
+<pre class="programlisting"><code class="language-json">{
+    "Resources": {
+        "S3CustomResource": {
+            "Type": "AWS::CloudFormation::CustomResource",
+            "Properties": {
+                "ServiceToken": {
+                    "Fn::GetAtt": [
+                        "CustomResHandlerLambda",
+                        "Arn"
+                    ]
+                },
+                "bucketName": {
+                    "Ref": "S3DataBucket"
+                }
+            }
+        }
+    }
+}</code></pre>
+<br>
+<p>Add dependencies for the custom resource:</p>
+<pre class="programlisting"><code class="language-json">{
+    "Resources": {
+        "S3CustomResource": {
+            "Type": "AWS::CloudFormation::CustomResource",
+            "DependsOn": [
+                "CustomResBucket"
+            ]
+        }
+    }
+}</code></pre>
+<br>
+<li><p><strong>CloudFormation input parameters</strong> for specifying the location of lambda code and the name of new S3 bucket which will be created as part of CloudFormation deployment.</p></li>
+<pre class="programlisting"><code class="language-json">{
+    "Parameters": {
+        "S3DataBucket": {
+            "Description": "Name of the new S3 bucket which will be created during deployment and where user data will be stored. It should be a globally unique name.",
+            "Type": "String"
+        },
+        "CustomResLambdaBucket": {
+            "Description": "Name of the S3 bucket where code for Lambda function is stored",
+            "Type": "String"
+        },
+        "CustomResLambdaZip": {
+            "Description": "Path of the S3 object where code for Lambda function is stored",
+            "Type": "String"
+        }
+    }
+}</code></pre>
+<br>
+<p>The CloudFormation template requires following inputs and customizations:</p>
+<div class="table">
+    <div class="table-contents">
+        <table>
+            <tbody>
+                <tr>
+                    <th>Parameter</th>
+                    <th>Default</th>
+                    <th>Description</th>
+                </tr>
+                <tr>
+                    <td>S3DataBucket</td>
+                    <td><code>&lt;Mandatory&gt;</code></td>
+                    <td>Name of the new S3 bucket which will be created during deployment of CloudFormation template</td>
+                </tr>
+                <tr>
+                    <td>CustomResLambdaBucket, CustomResLambdaZip</td>
+                    <td><code>&lt;Mandatory&gt;</code></td>
+                    <td>Location of the lambda source code</td>
+                </tr>
+                <tr>
+                    <td>Timeout</td>
+                    <td><code>3 seconds</code></td>
+                    <td>User can change the <code>Timeout</code> property of the lambda function if a large number of S3 objects need to be deleted</td>
+                </tr>
+                <tr>
+                    <td>MaxKeys</td>
+                    <td><code>&lt;Mandatory&gt;</code></td>
+                    <td>User can change the <code>MaxKeys</code> property in the lambda function code to control how many S3 objects are returned in each call to <code>listObjects</code></td>
+                </tr>                
+            </tbody>
+        </table>
+    </div>
+</div>
+</ol>
+<h2 id="note">(E) Key Points</h2>
+<ul>
+    <li><p>When the CloudFormation template is deployed, updated or deleted, the lambda function will always be invoked for each of these events. The lambda function must send a response back even if it does not handle a particular event. If no response is sent for any of these events, CloudFormation will hang and eventually fail with a timeout.</p></li>
+    <li><p>It is a good practice to catch all exceptions in the lambda function so that a response is always sent using the response URL. Otherwise, the CloudFormation stack will remain in <code>CREATE_IN_PROGRESS</code> stage until it times out.</p></li>
+    <li><p>AWS provides <a href="https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-lambda-function-code-cfnresponsemodule.html">sample code</a> for sending response from lambda function by invoking the pre-signed S3 URL. This sample code has been re-used in the <code>cfn-response</code> module included with this article.</p></li>
+</ul>
+<h2 id="conclusion">(F) Conclusion</h2>
+<p>This article provided a brief overview of AWS custom resources. It then explained how we can add custom logic to a CloudFormation template to delete the contents of an S3 bucket before CloudFormation attempts to delete it. Custom resources can also be used in several other scenarios like provisioning AWS resources that are not (yet) supported by CloudFormation, running migration scripts, initializing databases or uploading new website content to an S3 bucket on every deployment.</p>
+<br><br>
+    <hr>
+    <footer>
+        <a rel="license" href="http://creativecommons.org/licenses/by-sa/4.0/"><img alt="Creative Commons License" style="border-width:0" src="https://i.creativecommons.org/l/by-sa/4.0/80x15.png" /></a><br>Content licensed under <a rel="license" href="http://creativecommons.org/licenses/by-sa/4.0/">Creative Commons Attribution-ShareAlike 4.0 International License</a>.<br>Icons by <a href="https://icons8.com">Icons8</a> 
+    </footer>
+    </body>
+</html>

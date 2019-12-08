@@ -1,0 +1,5 @@
+This software uses source code from AWS documentation including from https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-lambda-function-code-cfnresponsemodule.html
+
+This software uses cascading style-sheets for Javascript designed by Lea Verou and downloaded from https://prismjs.com
+
+This software uses images downloaded from https://icons8.com

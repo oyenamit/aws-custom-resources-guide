@@ -1,0 +1,239 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Metadata": {
+        "AWS::CloudFormation::Designer": {
+            "16357ef5-f90e-46f6-9764-2bcb2df66f88": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 87,
+                    "y": 63
+                },
+                "z": 0,
+                "embeds": []
+            },
+            "6a7bd715-ab28-4a0d-99a6-ef47ed6bb28d": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 440,
+                    "y": 190
+                },
+                "z": 0,
+                "embeds": [],
+                "isassociatedwith": [
+                    "7f4efe1e-cc71-4e13-b4b1-76f49768a101"
+                ]
+            },
+            "7f4efe1e-cc71-4e13-b4b1-76f49768a101": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 440,
+                    "y": 60
+                },
+                "z": 0,
+                "embeds": []
+            },
+            "dc403d69-f337-4f09-9419-3a8eb4098d41": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 240,
+                    "y": 60
+                },
+                "z": 0,
+                "embeds": [],
+                "dependson": [
+                    "16357ef5-f90e-46f6-9764-2bcb2df66f88"
+                ]
+            },
+            "959dae6f-727c-4b05-8cc4-2d6f2b29887a": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 240,
+                    "y": 190
+                },
+                "z": 0,
+                "embeds": [],
+                "dependson": [
+                    "16357ef5-f90e-46f6-9764-2bcb2df66f88"
+                ]
+            }
+        }
+    },
+    "Resources": {
+        "CustomResBucket": {
+            "Type": "AWS::S3::Bucket",
+            "Properties": {
+                "BucketName": {
+                    "Ref": "S3DataBucket"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "16357ef5-f90e-46f6-9764-2bcb2df66f88"
+                }
+            }
+        },
+        "LambdaS3Policy": {
+            "Type": "AWS::IAM::Policy",
+            "Properties": {
+                "PolicyName": "LambdaS3Policy",
+                "PolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": "s3:DeleteObject",
+                            "Resource": {
+                                "Fn::Join": [
+                                    "",
+                                    [
+                                        "arn:aws:s3:::",
+                                        {
+                                            "Ref": "S3DataBucket"
+                                        },
+                                        "/*"
+                                    ]
+                                ]
+                            }
+                        },
+                        {
+                            "Effect": "Allow",
+                            "Action": "s3:ListBucket",
+                            "Resource": {
+                                "Fn::Join": [
+                                    "",
+                                    [
+                                        "arn:aws:s3:::",
+                                        {
+                                            "Ref": "S3DataBucket"
+                                        }
+                                    ]
+                                ]
+                            }
+                        }
+                    ]
+                },
+                "Roles": [
+                    {
+                        "Ref": "LambdaExecutionRole"
+                    }
+                ]
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "6a7bd715-ab28-4a0d-99a6-ef47ed6bb28d"
+                }
+            }
+        },
+        "LambdaExecutionRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "lambda.amazonaws.com"
+                                ]
+                            },
+                            "Action": [
+                                "sts:AssumeRole"
+                            ]
+                        }
+                    ]
+                },
+                "ManagedPolicyArns": [
+                    "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+                ]
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "7f4efe1e-cc71-4e13-b4b1-76f49768a101"
+                }
+            }
+        },
+        "CustomResHandlerLambda": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+                "Role": {
+                    "Fn::GetAtt": [
+                        "LambdaExecutionRole",
+                        "Arn"
+                    ]
+                },
+                "Runtime": "nodejs12.x",
+                "Timeout": 300,
+                "Handler": "index.handler",
+                "Code": {
+                    "S3Bucket": {
+                        "Ref": "CustomResLambdaBucket"
+                    },
+                    "S3Key": {
+                        "Ref": "CustomResLambdaZip"
+                    }
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "dc403d69-f337-4f09-9419-3a8eb4098d41"
+                }
+            },
+            "DependsOn": [
+                "CustomResBucket",
+                "LambdaExecutionRole"
+            ]
+        },
+        "S3CustomResource": {
+            "Type": "AWS::CloudFormation::CustomResource",
+            "Properties": {
+                "ServiceToken": {
+                    "Fn::GetAtt": [
+                        "CustomResHandlerLambda",
+                        "Arn"
+                    ]
+                },
+                "bucketName": {
+                    "Ref": "S3DataBucket"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "959dae6f-727c-4b05-8cc4-2d6f2b29887a"
+                }
+            },
+            "DependsOn": [
+                "CustomResBucket"
+            ]
+        }
+    },
+    "Parameters": {
+        "S3DataBucket": {
+            "Description": "Name of the new S3 bucket which will be created during deployment and where user data will be stored. It should be a globally unique name.",
+            "Type": "String"
+        },
+        "CustomResLambdaBucket": {
+            "Description": "Name of the S3 bucket where code for Lambda function is stored",
+            "Type": "String"
+        },
+        "CustomResLambdaZip": {
+            "Description": "Path of the S3 object where code for Lambda function is stored",
+            "Type": "String"
+        }
+    }
+}
